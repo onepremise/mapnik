@@ -1051,8 +1051,8 @@ if not preconfigured:
             # Recreate the base environment using modified `opts`
 
             if mingwbuild:
-	        env = Environment(tools = ['mingw'], ENV = os.environ, options=opts)
-	    else:
+                env = Environment(tools = ['mingw'], ENV = os.environ, options=opts)
+            else:
                 env = Environment(ENV=os.environ,options=opts)
                 
             env.Decider('MD5-timestamp')
