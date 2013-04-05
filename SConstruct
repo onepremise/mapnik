@@ -21,6 +21,7 @@ import os
 import sys
 import re
 import platform
+import sysconfig
 from glob import glob
 from subprocess import Popen, PIPE
 from SCons.SConf import SetCacheMode
@@ -111,7 +112,16 @@ PLUGINS = { # plugins with external dependencies
 
 
 #### SCons build options and initial setup ####
-env = Environment(ENV=os.environ)
+if (sys.platform == "win32" and sys.version.upper().find('GCC') >= 0):
+    if sysconfig.get_config_var('CFLAGS').find('MINGW')>=0:
+        mingwbuild=True
+    
+if mingwbuild:
+    env = Environment(ENV = os.environ, tools = ['mingw'])
+    env['smp'] = 0
+else:
+    env = Environment(ENV = os.environ)
+
 env.Decider('MD5-timestamp')
 env.SourceCode(".", None)
 
@@ -294,9 +304,9 @@ opts.AddVariables(
 
     # Boost variables
     # default is '/usr/include', see FindBoost method below
-    ('BOOST_INCLUDES', 'Search path for boost include files', '',False),
+    ('BOOST_INCLUDES', 'Search path for boost include files', '$PREFIX/include',False),
     # default is '/usr/' + LIBDIR_SCHEMA, see FindBoost method below
-    ('BOOST_LIBS', 'Search path for boost library files', '',False),
+    ('BOOST_LIBS', 'Search path for boost library files', '$PREFIX' + LIBDIR_SCHEMA_DEFAULT,False),
     ('BOOST_TOOLKIT','Specify boost toolkit, e.g., gcc41.','',False),
     ('BOOST_ABI', 'Specify boost ABI, e.g., d.','',False),
     ('BOOST_VERSION','Specify boost version, e.g., 1_35.','',False),
@@ -305,24 +315,24 @@ opts.AddVariables(
     # Variables for required dependencies
     ('FREETYPE_CONFIG', 'The path to the freetype-config executable.', 'freetype-config'),
     ('XML2_CONFIG', 'The path to the xml2-config executable.', 'xml2-config'),
-    PathVariable('ICU_INCLUDES', 'Search path for ICU include files', '/usr/include', PathVariable.PathAccept),
-    PathVariable('ICU_LIBS','Search path for ICU include files','/usr/' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
-    ('ICU_LIB_NAME', 'The library name for icu (such as icuuc, sicuuc, or icucore)', 'icuuc',
-PathVariable.PathAccept),
-    PathVariable('LTDL_INCLUDES', 'Search path for libltdl (part of libtool) include files', '/usr/include', PathVariable.PathAccept),
-    PathVariable('LTDL_LIBS','Search path for libltdl (ltdl.h) library files','/usr/' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
+    ('ICU_CONFIG', 'The path to the icu-config executable.', 'icu-config'),
+    PathVariable('ICU_INCLUDES', 'Search path for ICU include files', '$PREFIX/include', PathVariable.PathAccept),
+    PathVariable('ICU_LIBS','Search path for ICU include files','$PREFIX' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
+    ('ICU_LIB_NAME', 'The library name for icu (such as icuuc, sicuuc, or icucore)', 'icuuc'),
+    PathVariable('LTDL_INCLUDES', 'Search path for libltdl (part of libtool) include files', '$PREFIX/include', PathVariable.PathAccept),
+    PathVariable('LTDL_LIBS','Search path for libltdl (ltdl.h) library files','$PREFIX' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
     BoolVariable('PNG', 'Build Mapnik with PNG read and write support', 'True'),
-    PathVariable('PNG_INCLUDES', 'Search path for libpng include files', '/usr/include', PathVariable.PathAccept),
-    PathVariable('PNG_LIBS','Search path for libpng library files','/usr/' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
+    PathVariable('PNG_INCLUDES', 'Search path for libpng include files', '$PREFIX/include', PathVariable.PathAccept),
+    PathVariable('PNG_LIBS','Search path for libpng library files','$PREFIX' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
     BoolVariable('JPEG', 'Build Mapnik with JPEG read and write support', 'True'),
-    PathVariable('JPEG_INCLUDES', 'Search path for libjpeg include files', '/usr/include', PathVariable.PathAccept),
-    PathVariable('JPEG_LIBS', 'Search path for libjpeg library files', '/usr/' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
+    PathVariable('JPEG_INCLUDES', 'Search path for libjpeg include files', '$PREFIX/include', PathVariable.PathAccept),
+    PathVariable('JPEG_LIBS', 'Search path for libjpeg library files', '$PREFIX' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
     BoolVariable('TIFF', 'Build Mapnik with TIFF read and write support', 'True'),
-    PathVariable('TIFF_INCLUDES', 'Search path for libtiff include files', '/usr/include', PathVariable.PathAccept),
-    PathVariable('TIFF_LIBS', 'Search path for libtiff library files', '/usr/' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
+    PathVariable('TIFF_INCLUDES', 'Search path for libtiff include files', '$PREFIX/include', PathVariable.PathAccept),
+    PathVariable('TIFF_LIBS', 'Search path for libtiff library files', '$PREFIX' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
     BoolVariable('PROJ', 'Build Mapnik with proj4 support to enable transformations between many different projections', 'True'),
-    PathVariable('PROJ_INCLUDES', 'Search path for PROJ.4 include files', '/usr/include', PathVariable.PathAccept),
-    PathVariable('PROJ_LIBS', 'Search path for PROJ.4 library files', '/usr/' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
+    PathVariable('PROJ_INCLUDES', 'Search path for PROJ.4 include files', '$PREFIX/include', PathVariable.PathAccept),
+    PathVariable('PROJ_LIBS', 'Search path for PROJ.4 library files', '$PREFIX' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
     ('PKG_CONFIG_PATH', 'Use this path to point pkg-config to .pc files instead of the PKG_CONFIG_PATH environment setting',''),
 
     # Variables affecting rendering back-ends
@@ -530,21 +540,38 @@ def prioritize_paths(context,silent=True):
     ret = context.Result( True )
     return ret
 
+#pkg-config returns 0 upon success
+#http://people.freedesktop.org/~dbn/pkg-config-guide.html
 def CheckPKGConfig(context, version):
     context.Message( 'Checking for pkg-config... ' )
-    ret = context.TryAction('pkg-config --atleast-pkgconfig-version=%s' % version)[0]
+    
+    if mingwbuild:
+        ret = context.TryAction('python mingw-shell-adapter.py pkg-config --atleast-pkgconfig-version=%s' % version)[0]
+    else:
+        ret = context.TryAction('pkg-config --atleast-pkgconfig-version=%s' % version)[0]
+    
     context.Result( ret )
     return ret
 
 def CheckPKG(context, name):
     context.Message( 'Checking for %s... ' % name )
-    ret = context.TryAction('pkg-config --exists \'%s\'' % name)[0]
+    
+    if mingwbuild:
+        ret = context.TryAction('python mingw-shell-adapter.py pkg-config --exists \'%s\'' % name)[0]
+    else:
+        ret = context.TryAction('pkg-config --exists \'%s\'' % name)[0]
+        
     context.Result( ret )
     return ret
 
 def CheckPKGVersion(context, name, version):
     context.Message( 'Checking for at least version %s for %s... ' % (version,name) )
-    ret = context.TryAction('pkg-config --atleast-version=%s \'%s\'' % (version,name))[0]
+    
+    if mingwbuild:
+        ret = context.TryAction('python mingw-shell-adapter.py pkg-config --atleast-version=%s \'%s\'' % (version,name))[0]
+    else:
+        ret = context.TryAction('pkg-config --atleast-version=%s \'%s\'' % (version,name))[0]
+
     context.Result( ret )
     return ret
 
@@ -555,8 +582,14 @@ def parse_config(context, config, checks='--libs --cflags'):
     if config in ('GDAL_CONFIG','GEOS_CONFIG'):
         toolname += ' %s' % checks
     context.Message( 'Checking for %s... ' % toolname)
-    cmd = '%s %s' % (env[config],checks)
-    ret = context.TryAction(cmd)[0]
+    
+    if mingwbuild:
+        cmd = 'python mingw-shell-adapter.py %s %s' % (env[config],checks)
+        ret = context.TryAction(cmd)[0]
+    else:
+        cmd = '%s %s' % (env[config],checks)
+        ret = context.TryAction(cmd)[0]
+
     parsed = False
     if ret:
         try:
@@ -595,8 +628,14 @@ def get_pkg_lib(context, config, lib):
     libname = None
     env = context.env
     context.Message( 'Checking for name of %s library... ' % lib)
-    cmd = '%s --libs' % env[config]
-    ret = context.TryAction(cmd)[0]
+    
+    if mingwbuild:
+        cmd = '%s %s/mingw-shell-adapter.py %s --libs' % (env['PYTHON'],os.getcwd(),env[config])
+        ret = context.TryAction(cmd)[0]
+    else:
+        cmd = '%s --libs' % env[config]
+        ret = context.TryAction(cmd)[0]
+    
     parsed = False
     if ret:
         try:
@@ -611,20 +650,39 @@ def get_pkg_lib(context, config, lib):
             ret = False
             print ' unable to determine library name:'# %s' % str(e)
             return None
-    context.Result( libname )
+            
+    try:        
+        context.Result( libname )
+    except Exception, e:
+        ret = False
+        print ' unable to determine library name:'# %s' % str(e)
+        return None        
     return libname
 
 def parse_pg_config(context, config):
     # TODO - leverage `LDFLAGS_SL` if RUNTIME_LINK==static
     env = context.env
     tool = config.lower()
+    
     context.Message( 'Checking for %s... ' % tool)
-    ret = context.TryAction(env[config])[0]
+    
+    if mingwbuild:
+        cmd = '%s %s/mingw-shell-adapter.py %s --libs' % (env['PYTHON'],os.getcwd(),env[config])
+        ret = context.TryAction(cmd)[0]
+    else:
+        ret = context.TryAction('%s --libs' % env[config])[0]
+    
     if ret:
-        lib_path = call('%s --libdir' % env[config])
-        inc_path = call('%s --includedir' % env[config])
+        if mingwbuild:
+            lib_path = call('%s %s/mingw-shell-adapter.py %s --libdir' % (env['PYTHON'],os.getcwd(),env[config]))
+            inc_path = call('%s %s/mingw-shell-adapter.py %s --includedir' % (env['PYTHON'],os.getcwd(),env[config]))
+        else:
+            lib_path = call('%s --libdir' % env[config])
+            inc_path = call('%s --includedir' % env[config])
+            
         env.AppendUnique(CPPPATH = os.path.realpath(inc_path))
         env.AppendUnique(LIBPATH = os.path.realpath(lib_path))
+        
         lpq = env['PLUGINS']['postgis']['lib']
         env.Append(LIBS = lpq)
     else:
@@ -636,7 +694,12 @@ def parse_pg_config(context, config):
 def ogr_enabled(context):
     env = context.env
     context.Message( 'Checking if gdal is ogr enabled... ')
-    ret = context.TryAction('%s --ogr-enabled' % env['GDAL_CONFIG'])[0]
+    
+    if mingwbuild:
+        ret = context.TryAction('python mingw-shell-adapter.py %s --ogr-enabled' % env['GDAL_CONFIG'])[0]
+    else:
+        ret = context.TryAction('%s --ogr-enabled' % env['GDAL_CONFIG'])[0]    
+
     if not ret:
         env['SKIPPED_DEPS'].append('ogr')
     context.Result( ret )
@@ -986,7 +1049,12 @@ if not preconfigured:
                     # but if the default is overridden and the file is not found, give warning
                     color_print(1,"SCons CONFIG not found: '%s'" % conf)
             # Recreate the base environment using modified `opts`
-            env = Environment(ENV=os.environ,options=opts)
+
+            if mingwbuild:
+	        env = Environment(tools = ['mingw'], ENV = os.environ, options=opts)
+	    else:
+                env = Environment(ENV=os.environ,options=opts)
+                
             env.Decider('MD5-timestamp')
             env.SourceCode(".", None)
             env['USE_CONFIG'] = True
@@ -1120,6 +1188,9 @@ if not preconfigured:
         lib_path = env['%s_LIBS' % required]
         env.AppendUnique(CPPPATH = os.path.realpath(inc_path))
         env.AppendUnique(LIBPATH = os.path.realpath(lib_path))
+        
+    if conf.parse_config('ICU_CONFIG', checks='--cflags --ldflags'):
+        env['HAS_ICU'] = True        
 
     if conf.parse_config('FREETYPE_CONFIG'):
         # check if freetype links to bz2
