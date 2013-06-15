@@ -48,7 +48,7 @@ py_env.Append(CPPPATH = env['PYTHON_INCLUDES'])
 
 py_env['LIBS'] = ['mapnik',env['BOOST_PYTHON_LIB']]
 
-link_all_libs = env['LINKING'] == 'static' or env['RUNTIME_LINK'] == 'static' or (env['PLATFORM'] == 'Darwin' and not env['PYTHON_DYNAMIC_LOOKUP'])
+link_all_libs = env['LINKING'] == 'static' or env['PLATFORM'] == 'MinGW' or env['RUNTIME_LINK'] == 'static' or (env['PLATFORM'] == 'Darwin' and not env['PYTHON_DYNAMIC_LOOKUP'])
 
 if link_all_libs:
     py_env.AppendUnique(LIBS=env['LIBMAPNIK_LIBS'])

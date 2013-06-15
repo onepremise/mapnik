@@ -31,6 +31,7 @@
 
 namespace mapnik { namespace util {
 
+
 MAPNIK_DECL bool exists(std::string const& value);
 MAPNIK_DECL bool is_directory(std::string const& value);
 MAPNIK_DECL bool remove(std::string const& value);

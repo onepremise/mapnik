@@ -38,6 +38,14 @@
 #include <algorithm>
 #include <cmath>
 
+#include <mapnik/config.hpp>
+
+#ifdef __MINGW__
+#  pragma push_macro("MAPNIK_DECL")
+#  undef MAPNIK_DECL
+#  define MAPNIK_DECL
+#endif
+
 namespace mapnik
 {
 
@@ -100,9 +108,9 @@ template <typename T,
           template <typename U> class CreatePolicy=CreateStatic> class MAPNIK_DECL singleton
 {
 #else
-    template <typename T,
-              template <typename U> class CreatePolicy=CreateStatic> class singleton
-    {
+template <typename T,
+          template <typename U> class CreatePolicy=CreateStatic> class singleton
+{
 #endif
 
 #ifdef __SUNPRO_CC
@@ -114,55 +122,61 @@ template <typename T,
 #else
         friend class CreatePolicy<T>;
 #endif
-        static T* pInstance_;
-        static bool destroyed_;
-        singleton(const singleton &rhs);
-        singleton& operator=(const singleton&);
 
-        static void onDeadReference()
-        {
-            throw std::runtime_error("dead reference!");
-        }
+    singleton(const singleton &rhs);
+    singleton& operator=(const singleton&);
 
-        static void DestroySingleton()
-        {
-            CreatePolicy<T>::destroy(pInstance_);
-            pInstance_ = 0;
-            destroyed_ = true;
-        }
+	static void onDeadReference()
+	{
+		throw std::runtime_error("dead reference!");
+	}
 
-    protected:
+	static void DestroySingleton()
+	{
+		CreatePolicy<T>::destroy(pInstance_);
+		pInstance_ = 0;
+		destroyed_ = true;
+	}
+
+protected:
 #ifdef MAPNIK_THREADSAFE
-        static mutex mutex_;
+    static mutex mutex_;
 #endif
-        singleton() {}
-    public:
-        static T& instance()
-        {
-            if (! pInstance_)
-            {
-#ifdef MAPNIK_THREADSAFE
-                mutex::scoped_lock lock(mutex_);
-#endif
-                if (! pInstance_)
-                {
-                    if (destroyed_)
-                    {
-                        destroyed_ = false;
-                        onDeadReference();
-                    }
-                    else
-                    {
-                        pInstance_ = CreatePolicy<T>::create();
+    singleton() {}
 
-                        // register destruction
-                        std::atexit(&DestroySingleton);
-                    }
-                }
-            }
-            return *pInstance_;
-        }
-    };
+public:
+	static T& instance()
+	{
+		if (! pInstance_)
+		{
+#ifdef MAPNIK_THREADSAFE
+			mutex::scoped_lock lock(mutex_);
+#endif
+			if (! pInstance_)
+			{
+				if (destroyed_)
+				{
+					destroyed_ = false;
+					onDeadReference();
+				}
+				else
+				{
+					pInstance_ = CreatePolicy<T>::create();
+
+					// register destruction
+					std::atexit(&DestroySingleton);
+				}
+			}
+		}
+		return *pInstance_;
+	}
+
+private:
+
+    static T* pInstance_;
+    static bool destroyed_;
+};
+
 #ifdef MAPNIK_THREADSAFE
     template <typename T,
               template <typename U> class CreatePolicy> mutex singleton<T,CreatePolicy>::mutex_;
@@ -184,5 +198,9 @@ MAPNIK_DECL std::wstring utf8_to_utf16(std::string const& str);
 #endif  // _WINDOWS
 
 }
+
+#ifdef __MINGW__
+#  pragma pop_macro("MAPNIK_DECL")
+#endif
 
 #endif // MAPNIK_UTILS_HPP
