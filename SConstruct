@@ -383,12 +383,12 @@ opts.AddVariables(
     PathVariable('CAIRO_LIBS', 'Search path for cairo library files','',PathVariable.PathAccept),
     ('GDAL_CONFIG', 'The path to the gdal-config executable for finding gdal and ogr details.', 'gdal-config'),
     ('PG_CONFIG', 'The path to the pg_config executable.', 'pg_config'),
-    PathVariable('OCCI_INCLUDES', 'Search path for OCCI include files', '/usr/lib/oracle/10.2.0.3/client/include', PathVariable.PathAccept),
-    PathVariable('OCCI_LIBS', 'Search path for OCCI library files', '/usr/lib/oracle/10.2.0.3/client/'+ LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
-    PathVariable('SQLITE_INCLUDES', 'Search path for SQLITE include files', '/usr/include/', PathVariable.PathAccept),
-    PathVariable('SQLITE_LIBS', 'Search path for SQLITE library files', '/usr/' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
-    PathVariable('RASTERLITE_INCLUDES', 'Search path for RASTERLITE include files', '/usr/include/', PathVariable.PathAccept),
-    PathVariable('RASTERLITE_LIBS', 'Search path for RASTERLITE library files', '/usr/' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
+    PathVariable('OCCI_INCLUDES', 'Search path for OCCI include files', '$PREFIX/lib/oracle/10.2.0.3/client/include', PathVariable.PathAccept),
+    PathVariable('OCCI_LIBS', 'Search path for OCCI library files', '$PREFIX/lib/oracle/10.2.0.3/client/'+ LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
+    PathVariable('SQLITE_INCLUDES', 'Search path for SQLITE include files', '$PREFIX/include/', PathVariable.PathAccept),
+    PathVariable('SQLITE_LIBS', 'Search path for SQLITE library files', '$PREFIX/' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
+    PathVariable('RASTERLITE_INCLUDES', 'Search path for RASTERLITE include files', '$PREFIX/include/', PathVariable.PathAccept),
+    PathVariable('RASTERLITE_LIBS', 'Search path for RASTERLITE library files', '$PREFIX/' + LIBDIR_SCHEMA_DEFAULT, PathVariable.PathAccept),
 
     # Variables for logging and statistics
     BoolVariable('ENABLE_LOG', 'Enable logging, which is enabled by default when building in *debug*', 'False'),
