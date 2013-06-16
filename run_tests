@@ -7,12 +7,20 @@ python tests/visual_tests/test.py -q
 failures=$((failures+$?))
 
 echo "*** Running C++ tests..."
-for FILE in tests/cpp_tests/*-bin; do 
+for FILE in tests/cpp_tests/*-bin*; do
 	${FILE} -q -d .;
   failures=$((failures+$?))
 done
 
-echo
+if [ -e "tests/cpp_tests/singleton_test/singleton_test" ]; then
+    echo "*** Running singleton test..."
+    INSTANCES=`tests/cpp_tests/singleton_test/singleton_test|grep 'singtest CREATED'|wc -l`
+    
+    if [ $INSTANCES -gt 1 ]; then
+        echo $INSTANCES error detected.
+        failures=$((failures+$INSTANCES))
+    fi
+fi
 
 echo "*** Running python tests..."
 python tests/run_tests.py -q
