@@ -38,14 +38,18 @@ namespace mapnik
 
 class marker;
 
+#if defined __MINGW__
+class marker_cache;
+template class MAPNIK_DECL singleton<marker_cache, CreateStatic>;
+#endif
+
 typedef boost::shared_ptr<marker> marker_ptr;
 
-
 class MAPNIK_DECL marker_cache :
-        public singleton <marker_cache, CreateUsingNew>,
+        public singleton <marker_cache, CreateStatic>,
         private mapnik::noncopyable
 {
-    friend class CreateUsingNew<marker_cache>;
+    friend class CreateStatic<marker_cache>;
 private:
     marker_cache();
     ~marker_cache();

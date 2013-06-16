@@ -44,7 +44,7 @@ namespace qi = boost::spirit::qi;
 namespace standard_wide =  boost::spirit::standard_wide;
 using standard_wide::space_type;
 
-struct unicode_impl
+struct MAPNIK_DECL unicode_impl
 {
     template <typename T>
     struct result
@@ -63,7 +63,7 @@ struct unicode_impl
     mapnik::transcoder const& tr_;
 };
 
-struct regex_match_impl
+struct MAPNIK_DECL regex_match_impl
 {
 #ifdef BOOST_SPIRIT_USE_PHOENIX_V3
     template <typename T>
@@ -84,7 +84,7 @@ struct regex_match_impl
     mapnik::transcoder const& tr_;
 };
 
-struct regex_replace_impl
+struct MAPNIK_DECL regex_replace_impl
 {
 
 #ifdef BOOST_SPIRIT_USE_PHOENIX_V3
@@ -106,7 +106,7 @@ struct regex_replace_impl
     mapnik::transcoder const& tr_;
 };
 
-struct geometry_types : qi::symbols<char,mapnik::value_integer>
+struct MAPNIK_DECL geometry_types : qi::symbols<char,mapnik::value_integer>
 {
     geometry_types()
     {
@@ -120,7 +120,7 @@ struct geometry_types : qi::symbols<char,mapnik::value_integer>
 };
 
 template <typename T>
-struct integer_parser
+struct MAPNIK_DECL integer_parser
 {
     typedef qi::int_parser<T,10,1,-1> type;
 };

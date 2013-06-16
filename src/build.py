@@ -18,17 +18,19 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #
 #
-
-
 import os
 import sys
 import glob
+import SCons.Node.FS
+from SCons.Node import NodeList
 from copy import copy
 from subprocess import Popen, PIPE
 
 Import('env')
 
 lib_env = env.Clone()
+
+mingwbuild = (env['PLATFORM'] == "MinGW")
 
 def call(cmd, silent=True):
     stdin, stderr = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE).communicate()
@@ -40,8 +42,21 @@ def call(cmd, silent=True):
 def ldconfig(*args,**kwargs):
     call('ldconfig')
 
+binary_dir=''
+static_dir='src/static_objects'
+dynamic_dir='src/dynamic_objects'
+
 if env['LINKING'] == 'static':
     lib_env.Append(CXXFLAGS="-fPIC")
+    binary_dir = static_dir
+else:
+    binary_dir = dynamic_dir
+
+#seperate static and dynamic objects for the sake of exported symbols
+os.chdir('..')
+fsVariant = SCons.Node.FS.FS()
+fsVariant.VariantDir(binary_dir, 'src', duplicate=0)
+lib_env.VariantDir(binary_dir, 'src', duplicate=0)
 
 mapnik_lib_link_flag = ''
 
@@ -58,12 +73,7 @@ regex = 'boost_regex%s' % env['BOOST_APPEND']
 system = 'boost_system%s' % env['BOOST_APPEND']
 thread = 'boost_thread%s' % env['BOOST_APPEND']
 
-# clear out and re-set libs for this env
-# note: order matters on linux: see lorder | tsort
-lib_env['LIBS'] = [filesystem,
-                   regex,
-                   thread
-                  ]
+lib_env['LIBS'] = ['freetype','clipper',filesystem,regex,thread]
 
 if env['HAS_CAIRO']:
     lib_env.Append(LIBS=env['CAIRO_ALL_LIBS'])
@@ -90,7 +100,8 @@ if '-DHAVE_WEBP' in env['CPPDEFINES']:
 lib_env['LIBS'].append('xml2')
 
 if '-DBOOST_REGEX_HAS_ICU' in env['CPPDEFINES']:
-    lib_env['LIBS'].append('icui18n')
+    lib_env['LIBS'].append(env['ICU_LIB_I18N'])
+    lib_env['LIBS'].append(env['ICU_LIB_DATA'])
 
 lib_env['LIBS'].append(system)
 
@@ -305,12 +316,6 @@ source += Split(
     """
     )
 
-# clipper
-source += Split(
-    """
-     ../deps/clipper/src/clipper.cpp
-    """)
-
 if env['RUNTIME_LINK'] == "static":
     source += glob.glob('../deps/agg/src/' + '*.cpp')
 
@@ -366,9 +371,9 @@ if env.get('BOOST_LIB_VERSION_FROM_HEADER'):
         cpp ='mapped_memory_cache.cpp'
         source.remove(cpp)
         if env['LINKING'] == 'static':
-            source.insert(0,env4.StaticObject(cpp))
+            source.insert(0,env4.StaticObject(fsVariant.File(binary_dir+os.sep+cpp)))
         else:
-            source.insert(0,env4.SharedObject(cpp))
+            source.insert(0,env4.SharedObject(fsVariant.File(binary_dir+os.sep+cpp)))
 
 if env['XMLPARSER'] == 'libxml2' and env['HAS_LIBXML2']:
     source += Split(
@@ -383,9 +388,9 @@ if env['XMLPARSER'] == 'libxml2' and env['HAS_LIBXML2']:
         if cpp in source:
             source.remove(cpp)
         if env['LINKING'] == 'static':
-            source.insert(0,env2.StaticObject(cpp))
+            source.insert(0,env2.StaticObject(fsVariant.File(binary_dir+os.sep+cpp)))
         else:
-            source.insert(0,env2.SharedObject(cpp))
+            source.insert(0,env2.SharedObject(fsVariant.File(binary_dir+os.sep+cpp)))
 else:
     source += Split(
         """
@@ -407,6 +412,11 @@ env['LIBMAPNIK_LINKFLAGS'] = copy(lib_env['LINKFLAGS'])
 env['LIBMAPNIK_CXXFLAGS'] = libmapnik_cxxflags
 env['LIBMAPNIK_DEFINES'] = libmapnik_defines
 
+for s in source:
+    loc = source.index(s)
+    if isinstance(s, basestring):
+        source[loc] = fsVariant.File(binary_dir+os.sep+s)
+
 mapnik = None
 
 if env['PLATFORM'] == 'Darwin' or not env['ENABLE_SONAME']:
@@ -420,6 +430,20 @@ if env['PLATFORM'] == 'Darwin' or not env['ENABLE_SONAME']:
         env.Alias(target='install', source=result)
 
     env['create_uninstall_target'](env, os.path.join(target_path,env.subst(env['MAPNIK_LIB_NAME'])))
+elif env['PLATFORM'] == 'MinGW':
+    target_path = env['MAPNIK_LIB_BASE_DEST']
+
+    if 'uninstall' not in COMMAND_LINE_TARGETS:
+        if env['LINKING'] == 'static':
+            mapnik_static = lib_env.StaticLibrary('mapnik', source)
+            result_static = env.Install(target_path, mapnik_static)
+        else:
+            lib_env.Append(CXXFLAGS="-DMAPNIK_EXPORTS")
+            mapnik = lib_env.SharedLibrary('mapnik', source, LIBSUFFIX='.dll.a')
+            result_dynamic = env.Install(target_path, mapnik)
+            result_dynamic_to_bin = env.Install(os.path.realpath('/mingw/bin'), mapnik)
+            env.Alias(target='install', source=result_dynamic)
+            env.Alias(target='install', source=result_dynamic_to_bin)
 else:
     # Symlink command, only works if both files are in same directory
     def symlink(env, target, source):
@@ -460,6 +484,7 @@ else:
     env['create_uninstall_target'](env, target)
 
     # to enable local testing
+    #THIS BREAKS BUILD WHEN LIBRARIES NOT PRESENT IN DESTINATION.
     lib_major_minor = "%s.%d.%d" % (os.path.basename(env.subst(env['MAPNIK_LIB_NAME'])), int(major), int(minor))
     local_lib = os.path.basename(env.subst(env['MAPNIK_LIB_NAME']))
     if os.path.islink(lib_major_minor) or os.path.exists(lib_major_minor):
@@ -469,3 +494,5 @@ else:
 
 if not env['RUNTIME_LINK'] == 'static':
     Depends(mapnik, env.subst('../deps/agg/libagg.a'))
+
+Depends(mapnik, env.subst('../deps/clipper/libclipper.a'))

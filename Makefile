@@ -53,7 +53,9 @@ test:
 
 test-local:
 	@echo "*** Boostrapping local test environment..."
-	@export ${LINK_FIX}=`pwd`/src:${${LINK_FIX}} && \
+	#This fails under MinGW
+	#@export ${LINK_FIX}=`pwd`/src:${${LINK_FIX}} && \
+	@export LD_LIBRARY_PATH=`pwd`/src:${LD_LIBRARY_PATH} && \
 	export PATH=`pwd`/utils/mapnik-config/:${PATH} && \
 	export PYTHONPATH=`pwd`/bindings/python/:${PYTHONPATH} && \
 	export MAPNIK_FONT_DIRECTORY=`pwd`/fonts/dejavu-fonts-ttf-2.33/ttf/ && \
